@@ -14,12 +14,18 @@ solver = 'eig';
 % Change name
 name = 'QNMEig_const_Sphere.mph#'; 
 % Change Modes
-N_modes = 100; 
+N_modes = 5; 
 
 wl_min = 400e-9;
 wl_max = 1000e-9;
  
-addpath("SRC\") 
+addpath("SRC\")
+addpath("SRC\maxdistcolor\")
+
+folder0='RESULTS';
+    if ~exist(folder0, 'dir')
+        mkdir(folder0);
+    end
  
 Model = loadModels(name,'solver',solver, 'modes',N_modes); 
 
@@ -60,24 +66,29 @@ Q_factors = real(QNM.omega) ./ (2 * imag(QNM.omega));
 % Get Fields
 QNM_resonator = getModelResonatorFields(Model, QNM, scatter_selections);
 
-
+% Save Eigenfrequencies and Q-factors
+Matrix_EFQ = [...
+    linspace(1,length(QNM_resonator{1}.omega),length(QNM_resonator{1}.omega))',...
+    real(QNM_resonator{1}.omega), imag(QNM_resonator{1}.omega), Q_factors];
+writematrix(Matrix_EFQ ,fullfile(folder0,'EigenMode__Data.txt'),'Delimiter','space');
 
 %% Modal Fields
 
-for modeId=1:N_modes
+% YZ plane in x=0 cut. Anoter ones in analogy.
+y = linspace(-350e-9,350e-9,101);
+z = linspace(-350e-9,350e-9,101);
+[Y, Z] = meshgrid(y,z);
 
-    % YZ plane in x=0 cut. Anoter ones in analogy.
-    y = linspace(-350e-9,350e-9,101);
-    z = linspace(-350e-9,350e-9,101);
-    [Y, Z] = meshgrid(y,z);
-    
-    % Change cut-plane
-    x = 0e-9; 
+% Change cut-plane
+x = 0e-9; 
 
-    % Making mesh
-    coord = [x*ones(1,numel(Y));reshape(Y,1,[]);reshape(Z,1,[])];
+% Making mesh
+coord = [x*ones(1,numel(Y));reshape(Y,1,[]);reshape(Z,1,[])];
+
+QNM_fields = getModalFields(Model, QNM, 'coord',coord);
     
-    QNM_fields = getModalFields(Model, QNM, 'coord',coord);
+for modeId=1:N_modes-1
+
     
     % Reshape the array (norm E -> other ones in analogy)
     Ex = reshape(QNM_fields.Ex(modeId,:),size(Y));
@@ -87,17 +98,27 @@ for modeId=1:N_modes
     E = abs(Ex.^2 + Ey.^2 + Ez.^2);
 
     % Plot the norm field
-    figure();
+    figure('visible','off')
     surf(Y,Z,E,'LineStyle','none');
-    colorbar;view(2);title("norm E of mode#" + modeId);
+    colorbar;view(2);
+    title("YZ norm E of mode#" + modeId);
+    xlabel('y, m');
+    ylabel('z, m');
+    colormap(hot);
+
+    folder1 = 'Fields YZ plane';
+    if ~exist(folder1, 'dir')
+        mkdir(folder1);
+    end
     
+
     % For Save .jpg
     
-    %ax = gca;
-    %exportgraphics(ax,num2str(modeId),'Resolution',300)
+    ax = gca;
+    exportgraphics(ax,fullfile(folder1,['Mode',num2str(modeId),'.jpg']),'Resolution',300);
 
 end 
-
+movefile(folder1,['RESULTS/', folder1]);
 %% Extinction  Calculation for every mode
 
 %--- 
@@ -188,30 +209,62 @@ ext_m = ext_m/normalization;
 abs_m = abs_m/normalization;
 scs_m = scs_m/normalization;
 
-%colors = ["red", "green", "blue", "black", "yellow", "magenta", "#112333", "#DDA123", "#FF1232", "#ABCF88"];
+rgb = maxdistcolor(N_modes,@sRGB_to_OKLab);
 
 %Plotting SCS: Modes + Summary Spectrum
-figure;
+figure();
+
 for isol=1:N_modes-1
     plot(W.lambda_list.*1e9, scs_m(:,isol), "DisplayName", ...
-        [strcat("Mode #",num2str(isol))]);
+        [strcat("Mode #",num2str(isol))],'Color',rgb(isol,:));
     hold on;
     scatter(2*pi*retconstantes("c")./real(QNM_resonator{1}.omega(isol))*1e9,...
         0,"DisplayName", ...
-        [strcat("Mode #",num2str(isol))]);
+        [strcat("Mode #",num2str(isol))], 'MarkerEdgeColor',rgb(isol,:));
     
 end
 
 scs_sum = sum(scs_m(:,:),2);
 ext_sum = sum(ext_m(:,:),2);
+abs_sum = sum(abs_m(:,:),2);
 plot(W.lambda_list.*1e9, scs_sum, "DisplayName", "SUM");
-plot(W.lambda_list.*1e9, ext_sum, "DisplayName", "EXT");
+
 xlabel('wavelength');
-ylabel("\sigma_{EXT}");
+ylabel("\sigma_{SCS}");
 legend();
 
 
+folder2='EXTIN';
+if ~exist(folder2, 'dir')
+    mkdir(folder2);
+end
 
+
+folder3='SCA';
+if ~exist(folder3, 'dir')
+    mkdir(folder3);
+end
+
+folder4='ABS';
+if ~exist(folder4, 'dir')
+    mkdir(folder4);
+end
+
+
+Matrix_ext = [W.lambda_list', ext_m, ext_sum];
+writematrix(Matrix_ext, fullfile(folder2,strcat('Mode_excinction_Data.txt')),'Delimiter','space');
+
+
+Matrix_scs = [W.lambda_list', scs_m, scs_sum];
+writematrix(Matrix_scs,fullfile(folder3,strcat('Mode_scattering_Data.txt')),'Delimiter','space');
+
+
+Matrix_abs = [W.lambda_list', abs_m, abs_sum];
+writematrix(Matrix_abs,fullfile(folder4,strcat('Mode_absorption_Data.txt')),'Delimiter','space');
+
+movefile(folder2,['RESULTS/', folder2]);
+movefile(folder3,['RESULTS/', folder3]);
+movefile(folder4,['RESULTS/', folder4]);
 
 %% Multipole Decomposition of full field
 
