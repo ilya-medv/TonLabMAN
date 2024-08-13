@@ -10,7 +10,7 @@ solver = 'eig';
 % Change name
 name = 'QNMEig_const_Sphere.mph#'; 
 % Change Modes
-N_modes = 10; 
+N_modes = 6; 
 
 wl_min = 425e-9;
 wl_max = 455e-9;
@@ -140,6 +140,7 @@ for ir=1:length(RESULTS.sweep)
     for modeId=1:N_modes
         
             QNM_fields = RESULTS.fields.YZ.E(ir).data;
+      
             Y = RESULTS.fields.YZ.mesh(ir).Y;
             Z = RESULTS.fields.YZ.mesh(ir).Z;
     
@@ -185,7 +186,10 @@ end
 for ir=1:length(RESULTS.sweep)
     
     folder=num2str(RESULTS.sweep(ir));
+    
+    QNM = RESULTS.general_solutions(ir).data;
     QNM_resonator = RESULTS.resonator_solutions(ir).data;
+   
 
     normalization = (RESULTS.sweep(ir)*1e-9)^2 * pi;
 
